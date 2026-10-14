@@ -1,0 +1,68 @@
+# Compila, prueba y empaqueta NotchFlow en una máquina macOS de GitHub.
+#
+# - Al subir una etiqueta "v<versión>" (p. ej. v0.1.0): publica una Release de
+#   GitHub con el .dmg y el .zip adjuntos.
+# - En cada push a main, en pull requests y al lanzarlo a mano (pestaña
+#   Actions > Release > Run workflow): solo comprueba que compila y pasa las
+#   pruebas, y deja el .dmg y el .zip como artefactos descargables.
+#
+# La app sale con firma ad-hoc (sin certificado de Apple): quien la descargue
+# debe autorizarla la primera vez. Ver README, "Instalar una versión sin firmar".
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versión de la toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: La etiqueta coincide con Config/app.env
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          source Config/app.env
+          if [ "$GITHUB_REF_NAME" != "v$APP_VERSION" ]; then
+            echo "::error::La etiqueta $GITHUB_REF_NAME no coincide con APP_VERSION=$APP_VERSION en Config/app.env"
+            exit 1
+          fi
+
+      - name: Pruebas
+        run: Scripts/test.sh
+
+      - name: Empaquetar
+        run: Scripts/package.sh
+
+      - name: Guardar artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: NotchFlow
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error
+
+      - name: Publicar Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/*.zip \
+            --title "NotchFlow $GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "Versión sin firma de Apple. Instrucciones de instalación en el README: «Instalar una versión sin firmar»."
