@@ -14,9 +14,13 @@ final class ModuleCoordinator {
     let audio = AudioService()
     let wifi = WiFiService()
     let activity = ActivityService()
+    let reminders = RemindersService()
+    let camera = CameraService()
+    let shelf = ShelfService()
+    let timer = TimerService()
 
     private enum ServiceKey: CaseIterable {
-        case music, calendar, apps, battery, audio, wifi
+        case music, calendar, apps, battery, audio, wifi, reminders, camera
     }
 
     private struct Snapshot {
@@ -25,6 +29,7 @@ final class ModuleCoordinator {
         var nowPlaying: NowPlaying?
         var events: [CalendarEvent]
         var battery: BatteryStatus?
+        var timer: CountdownTimer
         var isExpanded: Bool
     }
 
@@ -46,6 +51,11 @@ final class ModuleCoordinator {
         let systemAdapter: [any MusicPlayerAdapter] = SystemNowPlayingAdapter().map { [$0] } ?? []
         music = MusicService(adapters: systemAdapter + [AppleMusicAdapter(runner: AppleScriptRunner())])
         apps = ApplicationService(store: store)
+        timer.onFinish = { [activity, model] in
+            activity.record(.timerFinished, title: String(localized: "Temporizador terminado"))
+            // Al abrir el panel para detener la alarma se ve el temporizador.
+            model.selectedModule = .timer
+        }
     }
 
     func start() {
@@ -68,6 +78,7 @@ final class ModuleCoordinator {
         if running.contains(.calendar) { calendar.reload() }
         if running.contains(.battery) { battery.refresh() }
         if running.contains(.wifi) { wifi.refresh() }
+        if running.contains(.reminders) { reminders.reload() }
     }
 
     // MARK: - Observación
@@ -84,6 +95,7 @@ final class ModuleCoordinator {
                 nowPlaying: music.nowPlaying,
                 events: calendar.events,
                 battery: battery.status,
+                timer: timer.timer,
                 isExpanded: model.state.isExpanded
             )
         } onChange: { [weak self] in
@@ -105,13 +117,20 @@ final class ModuleCoordinator {
         setRunning(.battery, visible.contains(.quickControls) || visible.contains(.activity) || indicators.contains(.battery))
         setRunning(.audio, visible.contains(.quickControls))
         setRunning(.wifi, visible.contains(.quickControls))
+        setRunning(.reminders, visible.contains(.reminders))
+        setRunning(.camera, visible.contains(.camera))
 
         // Al abrir el panel se actualiza la posición de la pista y se relee el
         // permiso del calendario, que el usuario puede haber cambiado en Ajustes.
         if snapshot.isExpanded, !wasExpanded {
             if running.contains(.music) { music.refresh() }
             if running.contains(.calendar), calendar.status != .available { calendar.reload() }
+            if running.contains(.reminders) { reminders.reload() }
+            // Abrir el panel detiene la alarma del temporizador.
+            timer.stopAlarm()
         }
+        // La cámara nunca sigue encendida con el panel cerrado.
+        if !snapshot.isExpanded, wasExpanded { camera.turnOff() }
         wasExpanded = snapshot.isExpanded
 
         let now = Date.now
@@ -119,6 +138,7 @@ final class ModuleCoordinator {
             nowPlaying: snapshot.nowPlaying,
             events: snapshot.events,
             battery: snapshot.battery,
+            timer: snapshot.timer,
             indicators: indicators,
             now: now
         ))
@@ -147,6 +167,8 @@ final class ModuleCoordinator {
         case .battery: battery
         case .audio: audio
         case .wifi: wifi
+        case .reminders: reminders
+        case .camera: camera
         }
         if shouldRun {
             running.insert(key)

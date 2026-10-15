@@ -6,7 +6,7 @@ struct AppsModuleView: View {
     let apps: ApplicationService
     let onOpenSettings: () -> Void
 
-    private let columns = [GridItem(.adaptive(minimum: 38, maximum: 44), spacing: 8)]
+    private let columns = [GridItem(.adaptive(minimum: 60, maximum: 68), spacing: 12)]
 
     var body: some View {
         ModuleCard(module: .apps) {
@@ -16,18 +16,18 @@ struct AppsModuleView: View {
                 }
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
                         ForEach(apps.favorites) { app in
                             Button {
                                 apps.open(app)
                             } label: {
-                                VStack(spacing: 2) {
+                                VStack(spacing: 4) {
                                     Image(nsImage: apps.icon(for: app))
                                         .resizable()
-                                        .frame(width: 34, height: 34)
+                                        .frame(width: 52, height: 52)
                                     Circle()
                                         .fill(.white.opacity(apps.isRunning(app) ? 0.7 : 0))
-                                        .frame(width: 3, height: 3)
+                                        .frame(width: 4, height: 4)
                                 }
                                 .contentShape(Rectangle())
                             }

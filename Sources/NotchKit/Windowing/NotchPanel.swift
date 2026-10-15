@@ -39,10 +39,32 @@ final class NotchPanel: NSPanel {
     }
 }
 
-/// Vista contenedora que avisa cuando el cursor entra o sale de la ventana.
+/// Vista contenedora que avisa cuando el cursor entra o sale de la ventana y
+/// cuando se arrastran archivos sobre ella. Con el panel abierto, las zonas
+/// de soltar de SwiftUI reciben el arrastre antes que esta vista.
 final class PointerTrackingView: NSView {
     var onPointerChange: (() -> Void)?
+    var onFileDragEntered: (() -> Void)?
     private var trackingArea: NSTrackingArea?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        onFileDragEntered?()
+        return []
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        onPointerChange?()
+    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()

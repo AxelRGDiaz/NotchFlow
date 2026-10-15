@@ -8,6 +8,10 @@ extension ModuleID {
         case .apps: "Aplicaciones"
         case .quickControls: "Accesos rápidos"
         case .activity: "Actividad"
+        case .reminders: "Tareas"
+        case .shelf: "Bandeja y AirDrop"
+        case .camera: "Espejo"
+        case .timer: "Temporizador"
         }
     }
 
@@ -18,6 +22,10 @@ extension ModuleID {
         case .apps: "square.grid.2x2"
         case .quickControls: "slider.horizontal.3"
         case .activity: "bell"
+        case .reminders: "checklist"
+        case .shelf: "tray.and.arrow.down"
+        case .camera: "person.crop.square"
+        case .timer: "timer"
         }
     }
 }

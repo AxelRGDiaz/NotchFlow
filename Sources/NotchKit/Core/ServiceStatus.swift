@@ -4,6 +4,8 @@ import Foundation
 /// activar la función que lo necesita.
 public enum PermissionKind: Hashable, Sendable {
     case calendar
+    case reminders
+    case camera
     /// Apple Events hacia una app concreta (Música, Spotify).
     case automation(bundleIdentifier: String)
     case notifications

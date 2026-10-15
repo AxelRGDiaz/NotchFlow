@@ -68,6 +68,7 @@ final class AppleMusicAdapter: MusicPlayerAdapter {
         case .playPause: "playpause"
         case .next: "next track"
         case .previous: "previous track"
+        case .seek(let position): "set player position to \(max(position, 0))"
         }
         try await runner.run(Script.command(verb)) { _ in }
     }

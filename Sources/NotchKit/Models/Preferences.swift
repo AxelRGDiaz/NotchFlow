@@ -8,6 +8,10 @@ public enum ModuleID: String, Codable, CaseIterable, Sendable {
     case apps
     case quickControls
     case activity
+    case reminders
+    case shelf
+    case camera
+    case timer
 }
 
 public enum AppearanceMode: String, Codable, CaseIterable, Sendable {
@@ -21,12 +25,12 @@ public enum PanelSize: String, Codable, CaseIterable, Sendable {
     case medium
     case large
 
-    /// Tamaño del contenido bajo la franja del notch.
+    /// Tamaño del contenido bajo la franja del notch, pestañas incluidas.
     public var contentSize: CGSize {
         switch self {
-        case .small: CGSize(width: 460, height: 190)
-        case .medium: CGSize(width: 560, height: 240)
-        case .large: CGSize(width: 680, height: 300)
+        case .small: CGSize(width: 480, height: 230)
+        case .medium: CGSize(width: 600, height: 268)
+        case .large: CGSize(width: 700, height: 330)
         }
     }
 }

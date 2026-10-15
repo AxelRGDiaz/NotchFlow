@@ -9,6 +9,7 @@ final class NotchWindowController: NSObject {
     private let modules: ModuleCoordinator
     private let panel = NotchPanel()
     private var settleTask: Task<Void, Never>?
+    private var dragWatchTask: Task<Void, Never>?
     private var outsideClickMonitor: Any?
     private var isStarted = false
 
@@ -28,6 +29,7 @@ final class NotchWindowController: NSObject {
         container.addSubview(hosting)
         hosting.frame = container.bounds
         container.onPointerChange = { [weak self] in self?.syncPointer() }
+        container.onFileDragEntered = { [weak self] in self?.model.send(.dragEntered) }
         panel.contentView = container
 
         panel.onCancel = { [weak self] in self?.model.send(.dismissRequested) }
@@ -56,6 +58,7 @@ final class NotchWindowController: NSObject {
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         settleTask?.cancel()
+        dragWatchTask?.cancel()
         model.cancelPendingWork()
         modules.stop()
         removeOutsideClickMonitor()
@@ -125,6 +128,7 @@ final class NotchWindowController: NSObject {
             removeOutsideClickMonitor()
             releaseKeyboardIfNeeded()
         }
+        watchPointerDuringDrag(model.openedByDrag)
 
         let transition = animated && duration > 0 ? panel.frame.union(target) : target
         panel.setFrame(transition, display: true)
@@ -151,14 +155,35 @@ final class NotchWindowController: NSObject {
 
     /// Los eventos de entrada y salida no llegan cuando es la ventana la que
     /// cambia de tamaño bajo un cursor quieto, así que la posición real del
-    /// cursor es la única fuente de verdad.
+    /// cursor es la única fuente de verdad. Se compara con el marco final y no
+    /// con el de la ventana: durante una transición esta ocupa también el marco
+    /// anterior, y al cerrar el panel el cursor sobre esa zona lo reabriría.
     private func syncPointer() {
-        var hitFrame = panel.frame
+        var hitFrame = model.windowFrame
         // El cursor pegado al borde superior informa una y igual al máximo.
         hitFrame.size.height += 2
         let inside = hitFrame.contains(NSEvent.mouseLocation)
         guard inside != model.pointerInside else { return }
         model.send(inside ? .pointerEntered : .pointerExited)
+    }
+
+    /// Durante un arrastre no llegan eventos de entrada y salida del cursor,
+    /// así que mientras el panel siga abierto por un arrastre se consulta su
+    /// posición. Sin esto el panel no se cerraría al alejar los archivos.
+    private func watchPointerDuringDrag(_ active: Bool) {
+        guard active else {
+            dragWatchTask?.cancel()
+            dragWatchTask = nil
+            return
+        }
+        guard dragWatchTask == nil else { return }
+        dragWatchTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard let self, self.model.openedByDrag else { break }
+                self.syncPointer()
+            }
+        }
     }
 
     private func installOutsideClickMonitor() {

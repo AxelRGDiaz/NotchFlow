@@ -22,14 +22,14 @@ import Testing
 
     @Test func musicAppearsOnlyWhilePlaying() {
         let playing = CompactContentBuilder.build(.init(nowPlaying: track(playing: true), indicators: all, now: now))
-        #expect(playing.content.leading?.systemImage == "waveform")
+        #expect(playing.content.trailing?.systemImage == "waveform")
         let paused = CompactContentBuilder.build(.init(nowPlaying: track(playing: false), indicators: all, now: now))
         #expect(paused.content.isEmpty)
     }
 
     @Test func eventWithinLeadTimeShowsMinutesAndRefreshesOnNextMinute() {
         let output = CompactContentBuilder.build(.init(events: [event("reunión", startsIn: 12 * 60 + 20)], indicators: all, now: now))
-        #expect(output.content.trailing?.text == "13 min")
+        #expect(output.content.leading?.text == "13 min")
         #expect(output.shownEventID == "reunión")
         // Pasa a "12 min" cuando falten exactamente 12 minutos.
         #expect(output.nextRefresh == now + 20)
@@ -43,7 +43,7 @@ import Testing
 
     @Test func justStartedEventShowsNowThenDisappears() {
         let started = CompactContentBuilder.build(.init(events: [event("daily", startsIn: -60)], indicators: all, now: now))
-        #expect(started.content.trailing?.text == "ahora")
+        #expect(started.content.leading?.text == "ahora")
         #expect(started.nextRefresh == now - 60 + CompactContentBuilder.eventLingerTime)
 
         let longRunning = CompactContentBuilder.build(.init(events: [event("taller", startsIn: -3_600, lasts: 7_200)], indicators: all, now: now))
@@ -54,7 +54,7 @@ import Testing
         let events = [event("en curso", startsIn: -60), event("siguiente", startsIn: 300)]
         let output = CompactContentBuilder.build(.init(events: events, indicators: all, now: now))
         #expect(output.shownEventID == "siguiente")
-        #expect(output.content.trailing?.text == "5 min")
+        #expect(output.content.leading?.text == "5 min")
     }
 
     @Test func allDayEventsNeverAppear() {
@@ -64,7 +64,7 @@ import Testing
 
     @Test func lowBatteryAppearsOnlyUnplugged() {
         let low = BatteryStatus(level: 0.18, isCharging: false, isPluggedIn: false)
-        #expect(CompactContentBuilder.build(.init(battery: low, indicators: all, now: now)).content.trailing?.text == "18 %")
+        #expect(CompactContentBuilder.build(.init(battery: low, indicators: all, now: now)).content.leading?.text == "18 %")
 
         let charging = BatteryStatus(level: 0.18, isCharging: true, isPluggedIn: true)
         #expect(CompactContentBuilder.build(.init(battery: charging, indicators: all, now: now)).content.isEmpty)
@@ -73,10 +73,10 @@ import Testing
         #expect(CompactContentBuilder.build(.init(battery: fine, indicators: all, now: now)).content.isEmpty)
     }
 
-    @Test func eventTakesTheTrailingSlotBeforeBattery() {
+    @Test func eventTakesTheLeadingSlotBeforeBattery() {
         let low = BatteryStatus(level: 0.1, isCharging: false, isPluggedIn: false)
         let output = CompactContentBuilder.build(.init(events: [event("ya", startsIn: 120)], battery: low, indicators: all, now: now))
-        #expect(output.content.trailing?.systemImage == "calendar")
+        #expect(output.content.leading?.systemImage == "calendar")
     }
 
     @Test func disabledIndicatorsAreIgnored() {
@@ -275,6 +275,55 @@ import Testing
             "playing": .bool(true), "playbackRate": .number(0),
         ]
         #expect(try #require(MediaRemotePayload(state)).isPlaying == false)
+    }
+
+    @Test func resumeWithOnlyPlayingFlagIsPlaying() throws {
+        // Pausado: velocidad 0. El aviso de reanudar solo trae "playing".
+        let paused: [String: MediaRemoteValue] = [
+            "bundleIdentifier": .string("com.brave.Browser"), "title": .string("Netflix"),
+            "playing": .bool(false), "playbackRate": .number(0),
+            "elapsedTimeMicros": .number(60_000_000), "timestampEpochMicros": .number(1_000_000_000_000_000),
+        ]
+        let now = Date(timeIntervalSince1970: 1_000_000_100)
+        let resumed = SystemNowPlayingAdapter.merge(["playing": .bool(true)], into: paused, now: now)
+        let track = try #require(MediaRemotePayload(resumed)).nowPlaying(player: .appleMusic)
+        #expect(track.isPlaying)
+        #expect(track.position == 60)
+        #expect(track.positionDate == now)
+    }
+
+    @Test func pauseWithOnlyPlayingFlagKeepsPosition() throws {
+        let playing: [String: MediaRemoteValue] = [
+            "bundleIdentifier": .string("com.brave.Browser"), "title": .string("Netflix"),
+            "playing": .bool(true), "playbackRate": .number(1),
+            "elapsedTimeMicros": .number(60_000_000), "timestampEpochMicros": .number(1_000_000_000_000_000),
+        ]
+        let now = Date(timeIntervalSince1970: 1_000_000_010)
+        let paused = SystemNowPlayingAdapter.merge(["playing": .bool(false)], into: playing, now: now)
+        let track = try #require(MediaRemotePayload(paused)).nowPlaying(player: .appleMusic)
+        #expect(!track.isPlaying)
+        #expect(track.position == 70)
+    }
+
+    @Test func diffWithRateKeepsReportedRate() throws {
+        let state: [String: MediaRemoteValue] = [
+            "bundleIdentifier": .string("com.spotify.client"), "title": .string("Canción"),
+            "playing": .bool(false), "playbackRate": .number(1),
+        ]
+        let merged = SystemNowPlayingAdapter.merge(["playing": .bool(true), "playbackRate": .number(0)], into: state)
+        #expect(try #require(MediaRemotePayload(merged)).isPlaying == false)
+    }
+
+    @Test func playerWithoutBundleStillCounts() throws {
+        // Un reproductor de terminal: MediaRemote solo informa su PID.
+        let state: [String: MediaRemoteValue] = [
+            "title": .string("family ties"), "playing": .bool(true), "playbackRate": .number(1),
+            "processIdentifier": .number(5759),
+        ]
+        let payload = try #require(MediaRemotePayload(state))
+        #expect(payload.appBundleIdentifier == nil)
+        #expect(payload.processIdentifier == 5759)
+        #expect(payload.isPlaying)
     }
 
     @Test func emptyStateMeansNothingPlaying() {

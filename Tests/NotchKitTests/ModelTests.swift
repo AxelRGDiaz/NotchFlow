@@ -5,8 +5,8 @@ import Testing
 @Suite struct PreferencesTests {
     @Test func roundTripsThroughJSON() throws {
         var prefs = Preferences()
-        prefs.moduleOrder = [.calendar, .music, .apps, .quickControls, .activity]
-        prefs.hiddenModules = [.activity]
+        prefs.moduleOrder = [.calendar, .music, .apps, .quickControls, .activity, .reminders, .shelf, .camera, .timer]
+        prefs.hiddenModules = [.activity, .reminders, .shelf, .camera, .timer]
         prefs.panelSize = .large
         prefs.appearance = .dark
         prefs.favorites = [FavoriteApp(bundleIdentifier: "com.apple.Safari", displayName: "Safari")]
@@ -35,7 +35,7 @@ import Testing
         prefs.favorites = [app, app, FavoriteApp(bundleIdentifier: "", displayName: "?")]
 
         let fixed = prefs.normalized()
-        #expect(fixed.moduleOrder == [.apps, .music, .calendar, .quickControls, .activity])
+        #expect(fixed.moduleOrder == [.apps, .music, .calendar, .quickControls, .activity, .reminders, .shelf, .camera, .timer])
         #expect(fixed.opensOnClick)
         #expect(fixed.animationDuration == 1)
         #expect(fixed.hoverOpenDelay == 0)

@@ -1,36 +1,17 @@
 import SwiftUI
 
-extension ModuleID {
-    /// Ancho de la tarjeta del módulo dentro del panel.
-    var cardWidth: CGFloat {
-        switch self {
-        case .music: 218
-        case .calendar: 214
-        case .apps: 172
-        case .quickControls: 200
-        case .activity: 200
-        }
-    }
-}
-
-/// Contenedor común de un módulo: título y contenido sobre un fondo sutil.
+/// Contenedor común de un módulo: ocupa todo el ancho del panel bajo las
+/// pestañas, que ya muestran su nombre.
 struct ModuleCard<Content: View>: View {
     let module: ModuleID
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(module.title, systemImage: module.systemImage)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.55))
-                .accessibilityAddTraits(.isHeader)
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-        .padding(12)
-        .frame(width: module.cardWidth)
-        .frame(maxHeight: .infinity)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 22)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(module.title)
     }
 }
 

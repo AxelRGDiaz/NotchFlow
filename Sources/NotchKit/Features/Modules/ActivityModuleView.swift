@@ -8,7 +8,7 @@ struct ActivityModuleView: View {
     var body: some View {
         ModuleCard(module: .activity) {
             if activity.items.isEmpty {
-                ModuleMessage(text: "Sin actividad reciente. Aquí aparecen los avisos de NotchFlow: eventos próximos, cambios de canción y batería. Las notificaciones de otras apps no son accesibles.")
+                ModuleMessage(text: "Sin actividad reciente. Aquí aparecen los avisos de NotchFlow: eventos próximos, cambios de canción, batería y temporizador. Las notificaciones de otras apps no son accesibles.")
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 7) {
@@ -47,6 +47,7 @@ struct ActivityModuleView: View {
         case .trackChanged: "music.note"
         case .batteryLow: "battery.25"
         case .chargingChanged: "bolt.fill"
+        case .timerFinished: "timer"
         }
     }
 }

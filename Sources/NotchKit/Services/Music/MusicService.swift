@@ -15,6 +15,7 @@ final class MusicService: ServiceLifecycle {
     @ObservationIgnored private var listeners: [Task<Void, Never>] = []
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var artworkTrackKey: String?
+    @ObservationIgnored private var pendingSeek: PendingSeek?
 
     init(adapters: [any MusicPlayerAdapter]) {
         self.adapters = adapters
@@ -66,6 +67,15 @@ final class MusicService: ServiceLifecycle {
 
     func perform(_ command: MusicCommand) {
         guard let adapter = runningAdapter else { return }
+        // La barra salta al instante y se mantiene ahí mientras el reproductor
+        // aplica el salto; si no obedece, a los pocos segundos vuelve a su sitio.
+        if case .seek(let position) = command, var track = nowPlaying {
+            let now = Date.now
+            track.position = position
+            track.positionDate = now
+            nowPlaying = track
+            pendingSeek = PendingSeek(track: track, position: position, date: now)
+        }
         Task { [weak self] in
             do {
                 try await adapter.perform(command)
@@ -76,9 +86,10 @@ final class MusicService: ServiceLifecycle {
         }
     }
 
-    /// Abre la app que está reproduciendo; si no hay ninguna, Música.
+    /// Abre la app que está reproduciendo; si no hay ninguna, Música. Un
+    /// reproductor sin app (de terminal) no tiene nada que abrir.
     func openPlayer() {
-        let candidates = [nowPlaying?.player, activePlayer, defaultPlayer].compactMap { $0 }
+        let candidates = nowPlaying.map { [$0.player] } ?? [activePlayer, defaultPlayer].compactMap { $0 }
         guard let url = candidates.lazy.compactMap({
             NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleIdentifier)
         }).first else { return }
@@ -115,7 +126,15 @@ final class MusicService: ServiceLifecycle {
             // Asignar solo si cambia: cada asignación invalida las vistas que lo leen.
             if activePlayer != adapter.player { activePlayer = adapter.player }
             if status != .available { status = .available }
-            if nowPlaying != track { nowPlaying = track }
+            var shown = track
+            if let pending = pendingSeek, let fetched = track {
+                let result = pending.reconcile(fetched, now: .now)
+                shown = result.track
+                if !result.stillPending { pendingSeek = nil }
+            } else {
+                pendingSeek = nil
+            }
+            if nowPlaying != shown { nowPlaying = shown }
             await loadArtwork(for: track, from: adapter)
         } catch MusicAdapterError.automationDenied {
             clear(status: .denied(permissionKind), player: adapter.player)
@@ -149,5 +168,6 @@ final class MusicService: ServiceLifecycle {
         if nowPlaying != nil { nowPlaying = nil }
         if artwork != nil { artwork = nil }
         artworkTrackKey = nil
+        pendingSeek = nil
     }
 }

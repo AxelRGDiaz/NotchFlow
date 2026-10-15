@@ -9,11 +9,15 @@ public enum CompactContentBuilder {
     /// Tras empezar, el evento sigue visible este tiempo como "ahora".
     public static let eventLingerTime: TimeInterval = 5 * 60
     public static let lowBatteryLevel = 0.2
+    /// Tras terminar, el temporizador sigue avisando en el ala este tiempo.
+    public static let timerFinishedLinger: TimeInterval = 30
 
     public struct Input: Sendable {
         public var nowPlaying: NowPlaying?
         public var events: [CalendarEvent]
         public var battery: BatteryStatus?
+        /// Siempre se muestra si está en marcha: lo ha iniciado el usuario.
+        public var timer: CountdownTimer?
         public var indicators: Set<CompactIndicator>
         public var now: Date
 
@@ -21,12 +25,14 @@ public enum CompactContentBuilder {
             nowPlaying: NowPlaying? = nil,
             events: [CalendarEvent] = [],
             battery: BatteryStatus? = nil,
+            timer: CountdownTimer? = nil,
             indicators: Set<CompactIndicator>,
             now: Date
         ) {
             self.nowPlaying = nowPlaying
             self.events = events
             self.battery = battery
+            self.timer = timer
             self.indicators = indicators
             self.now = now
         }
@@ -44,8 +50,37 @@ public enum CompactContentBuilder {
         var refreshDates: [Date] = []
         var shownEventID: CalendarEvent.ID?
 
+        // La música va a la derecha; temporizador, evento y batería comparten
+        // la izquierda, en ese orden de prioridad.
+        if let timer = input.timer {
+            switch timer.state {
+            case .running(let end):
+                content.leading = .init(
+                    systemImage: "timer",
+                    countdownEnd: end,
+                    accessibilityLabel: String(localized: "Temporizador en marcha")
+                )
+                // Al vencer, el servicio cambia el estado y se recalcula.
+            case .paused(let remaining):
+                content.leading = .init(
+                    systemImage: "pause.fill",
+                    text: CountdownTimer.format(remaining),
+                    accessibilityLabel: String(localized: "Temporizador en pausa")
+                )
+            case .finished(let at) where input.now < at + timerFinishedLinger:
+                content.leading = .init(
+                    systemImage: "bell.fill",
+                    text: String(localized: "Listo"),
+                    accessibilityLabel: String(localized: "El temporizador ha terminado")
+                )
+                refreshDates.append(at + timerFinishedLinger)
+            case .idle, .finished:
+                break
+            }
+        }
+
         if input.indicators.contains(.music), let track = input.nowPlaying, track.isPlaying {
-            content.leading = .init(
+            content.trailing = .init(
                 systemImage: "waveform",
                 accessibilityLabel: String(localized: "Reproduciendo \(track.title)")
             )
@@ -58,11 +93,11 @@ public enum CompactContentBuilder {
                 .filter { $0.start <= input.now && input.now < min($0.start + eventLingerTime, $0.end) }
                 .max { $0.start < $1.start }
 
-            if let upcoming {
+            if let upcoming, content.leading == nil {
                 let startsIn = upcoming.start.timeIntervalSince(input.now)
                 if startsIn <= eventLeadTime {
                     let minutes = max(Int((startsIn / 60).rounded(.up)), 1)
-                    content.trailing = .init(
+                    content.leading = .init(
                         systemImage: "calendar",
                         text: String(localized: "\(minutes) min"),
                         accessibilityLabel: String(localized: "\(upcoming.title) empieza en \(minutes) minutos")
@@ -74,8 +109,8 @@ public enum CompactContentBuilder {
                     refreshDates.append(upcoming.start - eventLeadTime)
                 }
             }
-            if content.trailing == nil, let justStarted {
-                content.trailing = .init(
+            if content.leading == nil, let justStarted {
+                content.leading = .init(
                     systemImage: "calendar",
                     text: String(localized: "ahora"),
                     accessibilityLabel: String(localized: "\(justStarted.title) acaba de empezar")
@@ -85,10 +120,10 @@ public enum CompactContentBuilder {
             }
         }
 
-        if content.trailing == nil, input.indicators.contains(.battery),
+        if content.leading == nil, input.indicators.contains(.battery),
            let battery = input.battery, !battery.isPluggedIn, battery.level <= lowBatteryLevel {
             let percent = Int((battery.level * 100).rounded())
-            content.trailing = .init(
+            content.leading = .init(
                 systemImage: "battery.25",
                 text: String(localized: "\(percent) %"),
                 accessibilityLabel: String(localized: "Batería baja: \(percent) por ciento")

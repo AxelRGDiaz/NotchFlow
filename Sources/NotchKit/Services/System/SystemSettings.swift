@@ -10,6 +10,8 @@ enum SystemSettings: String {
     case sound = "com.apple.Sound-Settings.extension"
     case battery = "com.apple.Battery-Settings.extension"
     case calendarPrivacy = "com.apple.preference.security?Privacy_Calendars"
+    case remindersPrivacy = "com.apple.preference.security?Privacy_Reminders"
+    case cameraPrivacy = "com.apple.preference.security?Privacy_Camera"
     case automationPrivacy = "com.apple.preference.security?Privacy_Automation"
 
     var url: URL? { URL(string: "x-apple.systempreferences:\(rawValue)") }

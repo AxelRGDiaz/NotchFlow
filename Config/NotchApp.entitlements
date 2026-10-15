@@ -3,8 +3,11 @@
 <plist version="1.0">
 <dict>
     <!-- Con Hardened Runtime, cada acceso protegido debe declararse aquí. -->
-    <!-- Leer los eventos del calendario (EventKit). -->
+    <!-- Leer eventos y recordatorios (EventKit; cubre ambos). -->
     <key>com.apple.security.personal-information.calendars</key>
+    <true/>
+    <!-- Espejo de la cámara en el panel. -->
+    <key>com.apple.security.device.camera</key>
     <true/>
     <!-- Enviar Apple Events a Música para leer y controlar la reproducción. -->
     <key>com.apple.security.automation.apple-events</key>

@@ -12,24 +12,27 @@ final class CalendarService: ServiceLifecycle {
     private(set) var status: ServiceStatus = .idle
     private(set) var events: [CalendarEvent] = []
 
-    @ObservationIgnored private let store = EKEventStore()
+    /// Se sustituye al obtener acceso: un almacén creado antes de concederlo
+    /// puede seguir devolviendo cero eventos.
+    @ObservationIgnored private var store = EKEventStore()
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    @ObservationIgnored private var storeObserver: NSObjectProtocol?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
 
     func start() {
         guard observers.isEmpty else { return }
-        let center = NotificationCenter.default
-        for (name, object) in [(Notification.Name.EKEventStoreChanged, store as AnyObject?), (.NSCalendarDayChanged, nil)] {
-            observers.append(center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.reload() }
-            })
-        }
+        observers.append(NotificationCenter.default.addObserver(forName: .NSCalendarDayChanged, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reload() }
+        })
+        observeStore()
         reload()
     }
 
     func stop() {
         observers.forEach(NotificationCenter.default.removeObserver)
         observers = []
+        if let storeObserver { NotificationCenter.default.removeObserver(storeObserver) }
+        storeObserver = nil
         reloadTask?.cancel()
         events = []
         status = .idle
@@ -55,6 +58,7 @@ final class CalendarService: ServiceLifecycle {
         reloadTask?.cancel()
         switch EKEventStore.authorizationStatus(for: .event) {
         case .fullAccess:
+            if status != .available { renewStore() }
             status = .available
         case .notDetermined:
             status = .needsPermission(.calendar)
@@ -72,8 +76,21 @@ final class CalendarService: ServiceLifecycle {
             // La consulta de EventKit es síncrona; se hace fuera del hilo principal.
             let loaded = await Task.detached { Self.fetchEvents(from: store.value, now: .now) }.value
             guard !Task.isCancelled else { return }
+            Log.calendar.info("Eventos cargados: \(loaded.count)")
             self?.events = loaded
         }
+    }
+
+    private func observeStore() {
+        if let storeObserver { NotificationCenter.default.removeObserver(storeObserver) }
+        storeObserver = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reload() }
+        }
+    }
+
+    private func renewStore() {
+        store = EKEventStore()
+        if storeObserver != nil { observeStore() }
     }
 
     func openCalendarApp() {

@@ -1,7 +1,8 @@
 # NotchFlow
 
 Convierte el notch de los MacBook en un centro de control compacto: música,
-calendario, aplicaciones favoritas, estado del sistema y actividad reciente.
+calendario, tareas, bandeja de archivos con AirDrop, temporizador, espejo de cámara,
+aplicaciones favoritas, estado del sistema y actividad reciente.
 En reposo queda oculto tras el notch; al pasar el cursor o hacer clic se
 despliega un panel.
 
@@ -50,14 +51,18 @@ sin icono y sin el adaptador de música.
 
 | Módulo | Qué hace | Cómo |
 |---|---|---|
-| Música | Título, artista, carátula, progreso y controles de **cualquier reproductor** (navegadores, Música, Spotify…) | MediaRemote mediante mediaremote-adapter; respaldo con Apple Music por Apple Events |
+| Música | Título, artista, carátula y controles de **cualquier reproductor** (navegadores, Música, Spotify, reproductores de terminal…); la barra de progreso se arrastra para saltar | MediaRemote mediante mediaremote-adapter; respaldo con Apple Music por Apple Events |
 | Calendario | Evento en curso o próximo con cuenta atrás y eventos de los próximos 7 días | EventKit |
+| Tareas | Recordatorios pendientes: añadir y completar, sincronizados por iCloud | EventKit |
+| Bandeja y AirDrop | Arrastra archivos al notch para guardarlos y sácalos después arrastrando (siguen en la bandeja); zona de AirDrop al lado | NSSharingService |
+| Temporizador | Cuenta atrás con duraciones rápidas; sigue con el panel cerrado, se ve junto al notch y al terminar suena una alarma (se detiene al abrir el panel o a los 30 s) | — |
+| Espejo | Imagen de la cámara en espejo; se enciende con un botón y se apaga al cerrar el panel | AVFoundation |
 | Aplicaciones | Accesos directos a tus apps favoritas, con indicador de app abierta | NSWorkspace |
 | Accesos rápidos | Volumen (ajustable), batería y Wi-Fi (estado); brillo y Bluetooth (enlace a Ajustes) | CoreAudio, IOKit, CoreWLAN |
 | Actividad | Avisos de la propia app: evento próximo, cambio de canción, batería | — |
 
-Junto al notch aparecen indicadores cuando hay actividad: música sonando, un
-evento en 30 minutos o menos, batería baja.
+Junto al notch aparecen indicadores cuando hay actividad: música sonando, el
+temporizador en marcha, un evento en 30 minutos o menos, batería baja.
 
 **Lo que macOS no permite y la app no simula:** trasladar los iconos de otras
 apps de la barra de menús, leer las notificaciones de otras apps, ajustar el
@@ -67,7 +72,7 @@ brillo o encender el Bluetooth.
 
 | Permiso | Cuándo se pide | Para qué |
 |---|---|---|
-| Calendarios | Al pulsar "Permitir acceso" en la tarjeta de calendario | Leer tus eventos |
+| Calendarios | Al pulsar "Permitir acceso" en la pestaña Calendario | Leer tus eventos |
 | Automatización de Música | Solo si MediaRemote deja de funcionar y se usa el respaldo | Leer y controlar Música |
 
 No hay red, telemetría ni cuentas. Las preferencias se guardan en
@@ -106,7 +111,7 @@ Hay tres niveles, de menos a más preparado:
 
 | Cómo se genera | Quién puede abrirla | Qué ve el usuario |
 |---|---|---|
-| `Scripts/build-app.sh` (firma ad-hoc, por defecto) | Solo este Mac | Nada. Pero macOS puede volver a pedir los permisos tras cada recompilación |
+| `Scripts/build-app.sh` (certificado local o firma ad-hoc) | Solo este Mac | Nada. Con firma ad-hoc, macOS olvida los permisos tras cada recompilación (ver "Firma estable para desarrollo") |
 | Firmada con **Developer ID**, sin notarizar | Cualquier Mac, con un paso manual | "No se puede verificar que esté libre de malware". Hay que ir a Ajustes del Sistema > Privacidad y seguridad > **Abrir igualmente** (desde macOS 15, el clic derecho > Abrir ya no basta) |
 | Firmada con Developer ID **y notarizada** | Cualquier Mac | Solo el aviso estándar de "descargada de Internet" |
 
@@ -157,11 +162,15 @@ Para que macOS no olvide los permisos en cada compilación basta una identidad
 de firma estable. Sin cuenta de desarrollador, crea un certificado local:
 
 1. Acceso a Llaveros > Asistente para certificados > Crear un certificado.
-2. Nombre `NotchFlow Local`, tipo de identidad "Raíz autofirmada", tipo de
+2. Nombre `NotchFlow Dev`, tipo de identidad "Raíz autofirmada", tipo de
    certificado "Firma de código".
-3. `SIGN_IDENTITY="NotchFlow Local" Scripts/build-app.sh`
+3. `Scripts/build-app.sh` lo usa automáticamente si existe con ese nombre
+   (`SIGN_IDENTITY` lo sustituye por otro).
 
 Solo sirve en tu Mac; no evita los avisos de Gatekeeper en otros equipos.
+Al pasar de la firma ad-hoc al certificado, macOS puede conservar entradas de
+permisos que ya no coinciden y no volver a preguntar. Se borran con
+`tccutil reset Calendar com.axeldiaz.notchflow` (y `Reminders`, `Camera`).
 
 ### Distribución con Developer ID y notarización
 

@@ -17,6 +17,8 @@ public enum MusicCommand: Equatable, Sendable {
     case playPause
     case next
     case previous
+    /// Salta a esa posición de la pista, en segundos.
+    case seek(to: TimeInterval)
 }
 
 /// Instantánea de la reproducción. La posición se guarda junto al instante en
@@ -66,5 +68,41 @@ public struct NowPlaying: Equatable, Sendable {
     public func progress(at now: Date) -> Double? {
         guard let duration, duration > 0 else { return nil }
         return position(at: now) / duration
+    }
+}
+
+/// Salto pedido al reproductor que todavía no se refleja en sus datos. El
+/// reproductor tarda un momento en aplicarlo y en avisar: sin esto, la lectura
+/// siguiente devolvería la barra a la posición vieja antes de saltar de nuevo.
+public struct PendingSeek: Equatable, Sendable {
+    /// Pasado este tiempo se acepta lo que diga el reproductor.
+    public static let timeout: TimeInterval = 3
+    /// Diferencia admitida para dar el salto por aplicado.
+    public static let tolerance: TimeInterval = 1.5
+
+    public var trackKey: String
+    public var position: TimeInterval
+    public var date: Date
+
+    public init(track: NowPlaying, position: TimeInterval, date: Date) {
+        trackKey = Self.key(track)
+        self.position = position
+        self.date = date
+    }
+
+    /// La pista a mostrar y si hay que seguir esperando al reproductor.
+    public func reconcile(_ track: NowPlaying, now: Date) -> (track: NowPlaying, stillPending: Bool) {
+        guard Self.key(track) == trackKey, now.timeIntervalSince(date) < Self.timeout else { return (track, false) }
+        var expected = track
+        expected.position = position
+        expected.positionDate = date
+        if abs(track.position(at: now) - expected.position(at: now)) <= Self.tolerance {
+            return (track, false)
+        }
+        return (expected, true)
+    }
+
+    private static func key(_ track: NowPlaying) -> String {
+        track.trackID ?? "\(track.title)|\(track.artist ?? "")"
     }
 }

@@ -35,6 +35,14 @@ import Testing
         #expect(m.state.isExpanded)
     }
 
+    @Test func fileDragOpensEvenWithHoverAndClickDisabled() {
+        var m = Machine(config: .init(opensOnHover: false, opensOnClick: false))
+        #expect(m.handle(.dragEntered) == [.cancelOpen, .cancelClose])
+        #expect(m.state == .expanded(pinned: false))
+        // Ya abierto, otro arrastre solo evita el cierre pendiente.
+        #expect(m.handle(.dragEntered) == [.cancelClose])
+    }
+
     @Test func clickDisabledIsIgnored() {
         var m = Machine(config: .init(opensOnClick: false))
         _ = m.handle(.clicked)

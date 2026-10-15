@@ -8,6 +8,10 @@ import Observation
 final class NotchViewModel {
     private(set) var state: NotchStateMachine.State = .idle
     private(set) var compactContent = CompactContent()
+    /// El panel se abrió al arrastrar archivos encima: se muestra la bandeja.
+    private(set) var openedByDrag = false
+    /// Pestaña elegida. Se conserva entre aperturas mientras la app sigue abierta.
+    var selectedModule: ModuleID?
     var geometry: NotchGeometry
     let store: PreferencesStore
 
@@ -49,10 +53,18 @@ final class NotchViewModel {
         let effects = machine.handle(event)
         effects.forEach(run)
         if machine.state != state {
+            openedByDrag = event == .dragEntered && machine.state.isExpanded
+            if openedByDrag { selectedModule = .shelf }
             Log.window.info("\(String(describing: event), privacy: .public): \(String(describing: self.state), privacy: .public) → \(String(describing: self.machine.state), privacy: .public)")
             state = machine.state
             onLayoutChange?()
         }
+    }
+
+    /// La pestaña elegida si sigue visible; si no, la primera visible.
+    func currentModule(in visible: [ModuleID]) -> ModuleID? {
+        if let selectedModule, visible.contains(selectedModule) { return selectedModule }
+        return visible.first
     }
 
     func setCompactContent(_ content: CompactContent) {

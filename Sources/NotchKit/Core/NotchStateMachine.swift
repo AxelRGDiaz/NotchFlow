@@ -42,6 +42,8 @@ public struct NotchStateMachine: Equatable, Sendable {
         case pointerEntered
         case pointerExited
         case clicked
+        /// Se arrastran archivos sobre el notch: se abre para poder soltarlos.
+        case dragEntered
         case openDelayElapsed
         case closeDelayElapsed
         /// Escape, clic fuera del panel o pérdida de la pantalla.
@@ -97,6 +99,11 @@ public struct NotchStateMachine: Equatable, Sendable {
             guard !state.isExpanded, config.opensOnClick else { return [] }
             state = .expanded(pinned: false)
             return [.cancelOpen]
+
+        case .dragEntered:
+            guard !state.isExpanded else { return [.cancelClose] }
+            state = .expanded(pinned: false)
+            return [.cancelOpen, .cancelClose]
 
         case .openDelayElapsed:
             // Un temporizador atrasado no debe abrir si el cursor ya salió.

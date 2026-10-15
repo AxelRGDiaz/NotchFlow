@@ -82,7 +82,12 @@ struct CompactView: View {
             HStack(spacing: 5) {
                 Image(systemName: item.systemImage)
                     .font(.system(size: 12, weight: .semibold))
-                if let text = item.text {
+                if let end = item.countdownEnd {
+                    // Se actualiza sola cada segundo; el rango no puede invertirse.
+                    Text(timerInterval: min(Date.now, end)...end, countsDown: true)
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .lineLimit(1)
+                } else if let text = item.text {
                     Text(text)
                         .font(.system(size: 11, weight: .medium).monospacedDigit())
                         .lineLimit(1)

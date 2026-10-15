@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Panel expandido: una franja a la altura del notch, una fila de pestañas
+/// justo debajo y el módulo elegido ocupando todo el ancho.
 struct ExpandedPanelView: View {
     let model: NotchViewModel
     let modules: ModuleCoordinator
@@ -7,34 +9,42 @@ struct ExpandedPanelView: View {
     var body: some View {
         let notch = model.geometry.notchRect
         let visible = model.store.preferences.visibleModules
-        ScrollViewReader { scroll in
-            VStack(spacing: 0) {
-                header(visible: visible, notchWidth: model.geometry.hasPhysicalNotch ? notch.width : 0) { module in
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        scroll.scrollTo(module, anchor: .leading)
-                    }
-                }
+        let current = model.currentModule(in: visible)
+        VStack(spacing: 0) {
+            header(notchWidth: model.geometry.hasPhysicalNotch ? notch.width : 0)
                 .frame(height: notch.height)
 
-                content(visible: visible)
-                    .padding(.bottom, 12)
-                    .padding(.top, 4)
+            if let current {
+                ModuleTabs(visible: visible, current: current) { module in
+                    withAnimation(.easeInOut(duration: 0.2)) { model.selectedModule = module }
+                }
+                .padding(.top, 6)
+                .padding(.bottom, 10)
+
+                moduleView(current)
+                    .id(current)
+                    .transition(.opacity)
+                    .padding(.bottom, 16)
+            } else {
+                Text("No hay módulos visibles. Actívalos en Configuración.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .foregroundStyle(.white)
     }
 
     /// Franja a la altura del notch: su centro queda tapado por el notch
-    /// físico, así que solo se usan los laterales. A la izquierda, un botón
-    /// por módulo para saltar a él; a la derecha, fijar y configuración.
-    private func header(visible: [ModuleID], notchWidth: CGFloat, jump: @escaping (ModuleID) -> Void) -> some View {
+    /// físico, así que solo se usan los laterales, con poco contenido para
+    /// que nunca llegue a quedar debajo.
+    private func header(notchWidth: CGFloat) -> some View {
         HStack(spacing: 0) {
-            HStack(spacing: 2) {
-                ForEach(visible, id: \.self) { module in
-                    HeaderButton(systemImage: module.systemImage, label: module.title) {
-                        jump(module)
-                    }
-                }
+            TimelineView(.everyMinute) { context in
+                Text(context.date, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -54,31 +64,7 @@ struct ExpandedPanelView: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 14)
-    }
-
-    /// Los módulos van en una fila desplazable en el orden configurado: no
-    /// siempre caben todos a la vez en el ancho del panel.
-    @ViewBuilder
-    private func content(visible: [ModuleID]) -> some View {
-        if visible.isEmpty {
-            Text("No hay módulos visibles. Actívalos en Configuración.")
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.6))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(visible, id: \.self) { module in
-                        moduleView(module)
-                            .id(module)
-                    }
-                }
-                .scrollTargetLayout()
-                .padding(.horizontal, 12)
-            }
-            .scrollTargetBehavior(.viewAligned)
-        }
+        .padding(.horizontal, 16)
     }
 
     @ViewBuilder
@@ -94,7 +80,62 @@ struct ExpandedPanelView: View {
             QuickControlsModuleView(battery: modules.battery, audio: modules.audio, wifi: modules.wifi)
         case .activity:
             ActivityModuleView(activity: modules.activity)
+        case .reminders:
+            RemindersModuleView(reminders: modules.reminders)
+        case .shelf:
+            ShelfModuleView(shelf: modules.shelf)
+        case .camera:
+            CameraModuleView(camera: modules.camera)
+        case .timer:
+            TimerModuleView(timer: modules.timer)
         }
+    }
+}
+
+/// Pestañas de los módulos: la elegida muestra icono y nombre; el resto,
+/// solo el icono. Si no caben (panel pequeño), el nombre se omite.
+private struct ModuleTabs: View {
+    let visible: [ModuleID]
+    let current: ModuleID
+    let select: (ModuleID) -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            row(showsTitle: true)
+            row(showsTitle: false)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func row(showsTitle: Bool) -> some View {
+        HStack(spacing: 6) {
+            ForEach(visible, id: \.self) { module in
+                let selected = module == current
+                Button {
+                    select(module)
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: module.systemImage)
+                            .font(.system(size: 15, weight: selected ? .semibold : .medium))
+                        if selected, showsTitle {
+                            Text(module.title)
+                                .font(.system(size: 13, weight: .semibold))
+                                .lineLimit(1)
+                        }
+                    }
+                    .padding(.horizontal, selected && showsTitle ? 14 : 0)
+                    .frame(minWidth: 40, minHeight: 34)
+                    .foregroundStyle(selected ? Color.black : Color.white.opacity(0.8))
+                    .background(selected ? Color.white : Color.white.opacity(0.08), in: Capsule())
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help(module.title)
+                .accessibilityLabel(module.title)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .fixedSize()
     }
 }
 
@@ -106,8 +147,8 @@ private struct HeaderButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 24, height: 22)
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: 28, height: 26)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -4,9 +4,10 @@
 #   Scripts/build-app.sh [debug|release]
 #
 # Variables opcionales:
-#   SIGN_IDENTITY  identidad de firma. Por defecto "-" (firma ad-hoc, solo
-#                  sirve en este Mac). Para distribuir, el nombre de un
-#                  certificado "Developer ID Application: …". Ver README.
+#   SIGN_IDENTITY  identidad de firma. Por defecto, el certificado local
+#                  "NotchFlow Dev" si está en el llavero (ver README) y, si
+#                  no, "-" (firma ad-hoc). Para distribuir, el nombre de un
+#                  certificado "Developer ID Application: …".
 #
 # Solo arm64: todos los MacBook con notch son Apple Silicon.
 set -euo pipefail
@@ -17,7 +18,16 @@ source "$ROOT/Config/app.env"
 : "${APP_NAME:?}" "${BUNDLE_ID:?}" "${APP_VERSION:?}" "${APP_BUILD:?}" "${MIN_MACOS:?}"
 
 CONFIG="${1:-release}"
-SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+# Con firma ad-hoc cada compilación tiene otra huella y macOS olvida los
+# permisos concedidos (calendario, cámara…). Un certificado fijo lo evita.
+LOCAL_IDENTITY="NotchFlow Dev"
+if [[ -z "${SIGN_IDENTITY:-}" ]]; then
+    if security find-identity -p codesigning | grep -q "\"$LOCAL_IDENTITY\""; then
+        SIGN_IDENTITY="$LOCAL_IDENTITY"
+    else
+        SIGN_IDENTITY="-"
+    fi
+fi
 
 swift build --package-path "$ROOT" -c "$CONFIG" --product NotchApp
 BIN_DIR="$(swift build --package-path "$ROOT" -c "$CONFIG" --show-bin-path)"
@@ -57,6 +67,10 @@ cat > "$APP/Contents/Info.plist" <<EOF
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>$APP_NAME muestra tus próximos eventos en el panel. Los datos del calendario no salen de tu Mac.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>$APP_NAME muestra tus tareas pendientes de Recordatorios y te permite añadirlas y completarlas.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>$APP_NAME muestra la imagen de tu cámara como espejo solo cuando la enciendes en el panel. No se graba ni se envía nada.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>$APP_NAME muestra la canción que suena en Música y te permite pausar o cambiar de pista.</string>
 </dict>

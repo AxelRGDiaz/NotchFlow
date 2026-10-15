@@ -67,6 +67,26 @@ import Testing
         #expect(notifications == 1)
     }
 
+    @Test func selectedTabFallsBackToFirstVisible() throws {
+        let (model, cleanup) = try makeModel()
+        defer { cleanup() }
+        #expect(model.currentModule(in: [.music, .calendar]) == .music)
+        model.selectedModule = .calendar
+        #expect(model.currentModule(in: [.music, .calendar]) == .calendar)
+        // La pestaña elegida se ocultó en Configuración.
+        #expect(model.currentModule(in: [.music]) == .music)
+        #expect(model.currentModule(in: []) == nil)
+    }
+
+    @Test func fileDragSelectsTheShelf() throws {
+        let (model, cleanup) = try makeModel()
+        defer { cleanup() }
+        model.selectedModule = .music
+        model.send(.dragEntered)
+        #expect(model.openedByDrag)
+        #expect(model.selectedModule == .shelf)
+    }
+
     @Test func hoverExpandsAfterConfiguredDelay() async throws {
         let (model, cleanup) = try makeModel { $0.hoverOpenDelay = 0.05 }
         defer { cleanup() }

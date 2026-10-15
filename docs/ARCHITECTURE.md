@@ -41,7 +41,7 @@ NotchFlow/
 │  │                            System/ (batería, audio, Wi-Fi, enlaces a Ajustes)
 │  ├─ Windowing/                [hecho] NotchPanel, NotchWindowController
 │  ├─ AppShell/                 [hecho] AppController, ModuleCoordinator, StatusItemController
-│  └─ Features/                 [hecho] Notch/, Settings/, Modules/ (una tarjeta por módulo)
+│  └─ Features/                 [hecho] Notch/, Settings/, Modules/ (una vista por pestaña)
 ├─ Tests/NotchKitTests/         [hecho] geometría, disposición, estados, preferencias, modelos
 ├─ Resources/                   [hecho] AppIcon.icns (generado por Scripts/make-icon.swift)
 ├─ Vendor/mediaremote-adapter/  [hecho] adaptador de MediaRemote (BSD 3-Clause)
@@ -79,6 +79,15 @@ reposo mide exactamente lo mismo que el notch y queda oculta detrás de él.
 Comprobado en un MacBook Air M3 con macOS 26.6: AppKit no desplaza el panel
 fuera de la barra de menús y la app no pasa a primer plano.
 
+### Contenido del panel
+
+La franja a la altura del notch solo lleva la fecha a la izquierda y los
+botones de fijar y configuración a la derecha: el notch tapa su centro y una
+fila de iconos de módulos no cabía en los laterales. Los módulos van en una
+fila de pestañas justo debajo, y el elegido ocupa todo el ancho. La pestaña
+elegida se conserva entre aperturas; abrir el panel arrastrando archivos
+selecciona la bandeja.
+
 ### La ventana se ciñe a la forma visible
 
 `NotchLayout` calcula el marco de la ventana para cada estado: en reposo es
@@ -99,6 +108,10 @@ arriba y al centro.
   comprobación, porque no llegan cuando es la ventana la que cambia de tamaño.
 - Un monitor global de clics existe solo mientras el panel está abierto y sirve
   para cerrarlo al hacer clic fuera. No requiere permisos.
+- Arrastrar archivos sobre el notch abre el panel y lo lleva a la bandeja.
+  Durante un arrastre no llegan eventos de entrada y salida, así que mientras
+  el panel siga abierto por un arrastre se consulta la posición del cursor
+  cada 250 ms; al cerrarse, la consulta se detiene.
 - Abrir con el cursor o con un clic no toma el teclado. Abrir desde la barra de
   menús sí, para poder navegar con el teclado y cerrar con Escape.
 
@@ -226,6 +239,8 @@ muestra para qué lo necesita y un botón para concederlo o abrir Ajustes.
 | Permiso | Para qué | Clave de `Info.plist` | Si se deniega |
 |---|---|---|---|
 | Calendario (acceso completo) | Leer eventos | `NSCalendarsFullAccessUsageDescription` | Módulo con explicación y enlace a Ajustes |
+| Recordatorios (acceso completo) | Leer, crear y completar tareas | `NSRemindersFullAccessUsageDescription` (el entitlement de calendarios cubre EventKit) | Módulo con explicación y enlace a Ajustes |
+| Cámara | Espejo en el panel, solo tras pulsar "Encender" | `NSCameraUsageDescription` + entitlement `com.apple.security.device.camera` | Módulo con explicación y enlace a Ajustes |
 | Automatización (por app) | Leer y controlar Música | `NSAppleEventsUsageDescription` + entitlement `com.apple.security.automation.apple-events` | Ese reproductor aparece como "sin permiso" |
 | Notificaciones | Avisos propios | — | Solo indicadores dentro del panel |
 | Ubicación (opcional) | Nombre de la red Wi-Fi | `NSLocationUsageDescription` | Se muestra solo conectado o desconectado |
@@ -249,7 +264,9 @@ de verdad es `SMAppService`.
 
 ## Privacidad
 
-Sin red en el MVP, sin telemetría y sin datos fuera de `UserDefaults`. La única
+Sin red en el MVP, sin telemetría y sin datos fuera de `UserDefaults`. La
+bandeja guarda rutas, no copias de los archivos. La cámara solo muestra la
+imagen en pantalla: no se graba ni se procesa, y se apaga al cerrar el panel. La única
 función futura que usaría red (carátulas de Spotify, que el reproductor entrega
 como URL) será opcional. Los registros no incluyen títulos de canciones, de
 eventos ni nombres de red.

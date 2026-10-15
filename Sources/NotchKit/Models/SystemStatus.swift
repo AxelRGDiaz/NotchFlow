@@ -44,6 +44,7 @@ public struct ActivityItem: Equatable, Identifiable, Sendable {
         case trackChanged
         case batteryLow
         case chargingChanged
+        case timerFinished
     }
 
     public var id: UUID

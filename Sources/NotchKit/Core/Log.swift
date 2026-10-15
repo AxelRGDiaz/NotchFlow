@@ -9,6 +9,9 @@ public enum Log {
     public static let display = logger("display")
     public static let music = logger("music")
     public static let calendar = logger("calendar")
+    public static let reminders = logger("reminders")
+    public static let camera = logger("camera")
+    public static let shelf = logger("shelf")
     public static let system = logger("system")
     public static let preferences = logger("preferences")
 
