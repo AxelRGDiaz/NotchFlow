@@ -36,14 +36,7 @@ final class RemindersService: ServiceLifecycle {
     func requestAccess() {
         let store = StoreBox(store)
         Task { [weak self] in
-            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                store.value.requestFullAccessToReminders { _, error in
-                    if let error {
-                        Log.reminders.error("Fallo al solicitar acceso: \(error.localizedDescription, privacy: .public)")
-                    }
-                    continuation.resume()
-                }
-            }
+            await Self.requestFullAccess(store)
             self?.reload()
         }
     }
@@ -125,10 +118,22 @@ final class RemindersService: ServiceLifecycle {
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 
+    /// EventKit responde en un hilo propio: ver `CalendarService.requestFullAccess`.
+    nonisolated private static func requestFullAccess(_ store: StoreBox) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            store.value.requestFullAccessToReminders { @Sendable _, error in
+                if let error {
+                    Log.reminders.error("Fallo al solicitar acceso: \(error.localizedDescription, privacy: .public)")
+                }
+                continuation.resume()
+            }
+        }
+    }
+
     nonisolated private static func fetchPending(from store: EKEventStore) async -> [ReminderItem] {
         let predicate = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: nil)
         return await withCheckedContinuation { continuation in
-            store.fetchReminders(matching: predicate) { reminders in
+            store.fetchReminders(matching: predicate) { @Sendable reminders in
                 let items = (reminders ?? []).map { reminder in
                     ReminderItem(
                         id: reminder.calendarItemIdentifier,

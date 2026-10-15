@@ -42,14 +42,7 @@ final class CalendarService: ServiceLifecycle {
     func requestAccess() {
         let store = StoreBox(store)
         Task { [weak self] in
-            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                store.value.requestFullAccessToEvents { _, error in
-                    if let error {
-                        Log.calendar.error("Fallo al solicitar acceso: \(error.localizedDescription, privacy: .public)")
-                    }
-                    continuation.resume()
-                }
-            }
+            await Self.requestFullAccess(store)
             self?.reload()
         }
     }
@@ -96,6 +89,20 @@ final class CalendarService: ServiceLifecycle {
     func openCalendarApp() {
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    /// EventKit responde en un hilo propio. La respuesta se crea fuera del
+    /// actor principal: dentro, Swift la marcaría como del hilo principal y
+    /// cerraría la app al recibirla en otro.
+    nonisolated private static func requestFullAccess(_ store: StoreBox) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            store.value.requestFullAccessToEvents { @Sendable _, error in
+                if let error {
+                    Log.calendar.error("Fallo al solicitar acceso: \(error.localizedDescription, privacy: .public)")
+                }
+                continuation.resume()
+            }
+        }
     }
 
     nonisolated private static func fetchEvents(from store: EKEventStore, now: Date) -> [CalendarEvent] {
